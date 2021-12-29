@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"name": "p5",
+			"path": "../Downloads/p5"
+		},
+		{
+			"name": "q_learning",
+			"path": "."
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "q_learning"
+	}
+}
