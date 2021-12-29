@@ -1,31 +1,32 @@
-class Game {
+import Model from './qlearning-module/model.js';
 
-    static ACTIONS = ["L", "R", "U", "D"];
-    static DISCOUNT_RATE = 0.99;
-    static LEARNING_RATE = 0.5;
-    static EPSILON = 0.1;
+export default class Game {
 
-    constructor(width = 5, height = 5, start = {x: 0, y: 0}, winState = {x: 4, y: 4}, loseState = {x: 4, y: 2}) {
+    constructor({
+        width = 5,
+        height = 5,
+        start = {x: 0, y: 0},
+        winState = {x: 4, y: 4},
+        loseState = {x: 4, y: 2},
+        model = new Model()
+    } = {
+        width: 5,
+        height: 5,
+        start: {x: 0, y: 0},
+        winState: {x: 4, y: 4},
+        loseState: {x: 4, y: 2},
+        model: new Model()
+    }) {
         this.width = width;
         this.height = height;
         this.board = Array(this.width).fill(0).map(() => Array(this.height).fill(0));
         this.state = start;
         this.winState = winState;
         this.loseState = loseState;
+        this.model = model;
         this.board[this.state.x][this.state.y] = 1;
         this.board[this.winState.x][this.winState.y] = 2;
         this.board[this.loseState.x][this.loseState.y] = 3;
-
-        // Initialize the Q-table
-        this.qtable = {};
-        for (let i = 0; i < this.width; ++i) {
-            for (let j = 0; j < this.height; ++j) {
-                this.qtable[`${i},${j}`] = {};
-                Game.ACTIONS.forEach(a => {
-                    this.qtable[`${i},${j}`][a] = 0;
-                });
-            }
-        }
     }
 
     reset() {
@@ -36,23 +37,9 @@ class Game {
         this.board[this.loseState.x][this.loseState.y] = 3;
     }
 
-    resetQTable() {
-        this.qtable = {};
-        for (let i = 0; i < this.width; ++i) {
-            for (let j = 0; j < this.height; ++j) {
-                this.qtable[`${i},${j}`] = {};
-                Game.ACTIONS.forEach(a => {
-                    this.qtable[`${i},${j}`][a] = 0;
-                });
-            }
-        }
-    }
-
     step(action) {
         let newState = this.nextState(action);
-        let reward = this.giveReward(newState);
-        let y = reward + Game.DISCOUNT_RATE * this.qtable[`${newState.x},${newState.y}`][argmax(a => this.qtable[`${newState.x},${newState.y}`][a], Game.ACTIONS)];
-        this.qtable[`${this.state.x},${this.state.y}`][action] = this.qtable[`${this.state.x},${this.state.y}`][action] + (Game.LEARNING_RATE) * (y - this.qtable[`${this.state.x},${this.state.y}`][action]);
+        this.model.updateQValue(this.state, action, newState, this.getLegalActions(newState), this.giveReward(newState));
         
         this.board[this.state.x][this.state.y] = 0;
         this.state = newState;
@@ -61,15 +48,15 @@ class Game {
 
     giveReward(state) {
         if (JSON.stringify(state) === JSON.stringify(this.winState)) {
+            console.log("reward: 1");
             return 1000;
         }
-        if (JSON.stringify(state) === JSON.stringify(this.loserState)) {
+        if (JSON.stringify(state) === JSON.stringify(this.loseState)) {
             return -100;
         }
         else {
             return -0.5;
         }
-        
     }
 
     nextState(action) {
@@ -93,84 +80,53 @@ class Game {
     }
 
     isWin() {
-        return JSON.stringify(this.state) === JSON.stringify(this.winState);
+        return JSON.stringify(this.state) === JSON.stringify(this.winState) || this.board[this.winState.x][this.winState.y] == 0;
     }
 
     isLose() {
-        return JSON.stringify(this.state) === JSON.stringify(this.loseState) 
+        return JSON.stringify(this.state) === JSON.stringify(this.loseState) || this.board[this.loseState.x][this.loseState.y] == 0;
     }
 
     isTerminal() {
         return this.isWin() || this.isLose();
     }
 
-    epsilonGreedy() {
-        let action;
-        if (Math.random() < Game.EPSILON) {
-            action = this.chooseRandomLegalAction();
-        } else {
-            action = this.chooseMaxLegalAction();
+    getLegalActions(state) {
+        let actions = [];
+        if (state.x > 0) {
+            actions.push("L");
         }
-        return action;
-    }
-
-    isLegalAction(action) {
-        let newState = {x: this.state.x, y: this.state.y};
-        if (action == "L") {
-            newState.x -= 1;
+        if (state.x < this.width - 1) {
+            actions.push("R");
         }
-        else if (action == "R") {
-            newState.x += 1;
+        if (state.y > 0) {
+            actions.push("U");
         }
-        else if (action == "U") {
-            newState.y -= 1;
+        if (state.y < this.height - 1) {
+            actions.push("D");
         }
-        else if (action == "D") {
-            newState.y += 1;
-        }
-
-        return !(newState.x < 0 || newState.x >= this.width || newState.y < 0 || newState.y >= this.height)
-    }
-
-    chooseRandomLegalAction() {
-        let action = randomElement(Game.ACTIONS);
-        while (!this.isLegalAction(action)) {
-            action = randomElement(Game.ACTIONS);
-        }
-        return action;
-    }
-
-    decayEpsilon() {
-        Game.EPSILON *= 0.90;
-    }
-
-    chooseMaxLegalAction() {
-        let cloneAction = [...Game.ACTIONS];
-        let action = argmax(a => this.qtable[`${this.state.x},${this.state.y}`][a], cloneAction);
-        while (!this.isLegalAction(action)) {
-            action = argmax(a => this.qtable[`${this.state.x},${this.state.y}`][a], cloneAction);
-            cloneAction.splice(cloneAction.indexOf(action), 1);
-        }
-        return action;
+        return actions;
     }
 
     train(episodes = 100) {
         for (let i = 0; i < episodes; ++i) {
             this.reset();
             while (!this.isTerminal()) {
-                this.step(this.epsilonGreedy());
+                let action = this.model.getAction(this.state, this.getLegalActions(this.state));
+                this.step(action);
                 if (this.isWin()) {
-                    this.decayEpsilon();
+                    this.model.decayEpsilon();
                 }
             }
         }
     }
     
-    demo() {
+    async demo() {
         this.reset();
-        setTimeout(()=>{}, 1000);
+        this.model.epsilon = 0;
+        await delay(1000);
         let intervalId = setInterval(() => {
-            this.step(this.chooseMaxLegalAction());
+            this.step(this.model.getAction(this.state, this.getLegalActions(this.state)));
             if (this.isTerminal()) {
                 clearInterval(intervalId);
             }
@@ -181,30 +137,15 @@ class Game {
         for (let i = 0; i < episodes; ++i) {
             this.reset();
             while (!this.isTerminal()) {
-                this.step(this.epsilonGreedy(0.9));
-                if (this.isWin()) {
-                    this.decayEpsilon();
+                this.step(this.model.getAction(this.state, this.getLegalActions(this.state)));
+                if (this.isTerminal()) {
+                    this.model.decayEpsilon();
                 }
                 await delay(10);
             }
         }
     }
             
-}
-
-const argmax = (func, inputs) => {
-    let maxIndex = 0;
-
-    for (let i = 0; i < inputs.length; ++i) {
-        if (func(inputs[i]) > func(inputs[maxIndex])) {
-            maxIndex = i;
-        }
-    }
-    return inputs[maxIndex];
-}
-
-const randomElement = array => {
-    return array[Math.floor(Math.random() * array.length)];
 }
 
 const delay = async (ms) => {

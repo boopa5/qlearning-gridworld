@@ -1,5 +1,23 @@
+import Game from './Game.js';
+import Model from './qlearning-module/model.js';
+
 const DELAY = 100;
-let game = new Game(5, 5, {x: 0, y: 0}, {x: 4, y: 4}, {x: 1, y: 3});
+let game = new Game({
+    width: 5,
+    height: 5,
+    start: {x: 0, y: 0},
+    winState: {x: 4, y: 4},
+    loseState: {x: 4, y: 2}
+});
+
+let model = new Model({
+    learningRate: 0.5,
+    discountFactor: 0.99,
+    epsilon: 0.1,
+    epsilonDecay: 0.99,
+});
+
+game.model = model;
 
 function setup() {
     createCanvas(1000, 1000);
@@ -37,6 +55,9 @@ function draw() {
     drawGame(game);
 }
 
-game.trainDemo();
-// game.train();
+window.setup = setup;
+window.draw = draw;
+
+// await game.trainDemo();
+game.train();
 game.demo();
